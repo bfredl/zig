@@ -1674,6 +1674,11 @@ fn resolveMaybeUndefVal(
     switch (val.tag()) {
         .variable => return null,
         .generic_poison => return error.GenericPoison,
+        // .lazy_size => {
+        //     const ty = val.castTag(.lazy_size).?.data;
+        //     try sema.resolveTypeLayout(block, src, ty);
+        //     return val;
+        // },
         else => return val,
     }
 }
@@ -1710,11 +1715,13 @@ fn resolveMaybeUndefValAllowVariables(
     // First section of indexes correspond to a set number of constant values.
     var i: usize = @enumToInt(inst);
     if (i < Air.Inst.Ref.typed_value_map.len) {
+        std.debug.print("AAAAA\n", .{});
         return Air.Inst.Ref.typed_value_map[i].val;
     }
     i -= Air.Inst.Ref.typed_value_map.len;
 
     if (try sema.typeHasOnePossibleValue(block, src, sema.typeOf(inst))) |opv| {
+        std.debug.print("OQQQQUX\n", .{});
         return opv;
     }
     const air_tags = sema.air_instructions.items(.tag);
@@ -1723,9 +1730,11 @@ fn resolveMaybeUndefValAllowVariables(
             const ty_pl = sema.air_instructions.items(.data)[i].ty_pl;
             const val = sema.air_values.items[ty_pl.payload];
             if (val.tag() == .runtime_int) return null;
+            std.debug.print("BBBBB\n", .{});
             return val;
         },
         .const_ty => {
+            std.debug.print("CCCCC\n", .{});
             return try sema.air_instructions.items(.data)[i].ty.toValue(sema.arena);
         },
         else => return null,
