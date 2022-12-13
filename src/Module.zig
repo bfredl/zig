@@ -4382,11 +4382,18 @@ pub fn ensureFuncBodyAnalyzed(mod: *Module, func: *Fn) SemaError!void {
 
             if (dump_air) {
                 const fqn = try decl.getFullyQualifiedName(mod);
+                const src_loc = decl.srcLoc();
                 defer mod.gpa.free(fqn);
 
                 std.debug.print("# Begin Function AIR: {s}:\n", .{fqn});
-                @import("print_air.zig").dump(mod, air, liveness);
-                std.debug.print("# End Function AIR: {s}\n\n", .{fqn});
+                const source = src_loc.file_scope.getSource(mod.gpa) catch @panic("le panik");
+                const span = src_loc.span(mod.gpa) catch @panic("al panik");
+                const loc = std.zig.findLineColumn(source.bytes, span.main);
+                const file_path = src_loc.file_scope.fullPath(mod.gpa) catch @panic("muh panik");
+                std.debug.print("{s}:{}:{}\n", .{ file_path, loc.line, loc.column });
+
+                // @import("print_air.zig").dump(mod, air, liveness);
+                // std.debug.print("# End Function AIR: {s}\n\n", .{fqn});
             }
 
             if (no_bin_file and !dump_llvm_ir) return;
