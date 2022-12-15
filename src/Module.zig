@@ -4391,6 +4391,15 @@ pub fn ensureFuncBodyAnalyzed(mod: *Module, func: *Fn) SemaError!void {
                 const loc = std.zig.findLineColumn(source.bytes, span.main);
                 const file_path = src_loc.file_scope.fullPath(mod.gpa) catch @panic("muh panik");
                 std.debug.print("{s}:{}:{}\n", .{ file_path, loc.line, loc.column });
+                const ref_by = mod.reference_table.get(decl_index);
+                if (ref_by) |ref| {
+                    const ref_src_loc = ref.src.toSrcLoc(decl);
+                    const ref_source = ref_src_loc.file_scope.getSource(mod.gpa) catch @panic("le panik");
+                    const ref_span = ref_src_loc.span(mod.gpa) catch @panic("al panik");
+                    const ref_loc = std.zig.findLineColumn(ref_source.bytes, ref_span.main);
+                    const ref_file_path = ref_src_loc.file_scope.fullPath(mod.gpa) catch @panic("muh panik");
+                    std.debug.print("REF {s}:{}:{}\n", .{ ref_file_path, ref_loc.line, ref_loc.column });
+                }
 
                 // @import("print_air.zig").dump(mod, air, liveness);
                 // std.debug.print("# End Function AIR: {s}\n\n", .{fqn});
