@@ -291,6 +291,7 @@ pub const Lock = struct {
 };
 
 pub const Manifest = struct {
+    fubbig: bool = false,
     cache: *Cache,
     /// Current state for incremental hashing.
     hash: HashHelper,
@@ -357,13 +358,15 @@ pub const Manifest = struct {
     /// ```
     /// var file_contents = cache_hash.files.keys()[file_index].contents.?;
     /// ```
-    pub fn addFile(self: *Manifest, file_path: []const u8, max_file_size: ?usize) !usize {
+    pub fn addFile(self: *Manifest, file_path: []const u8, max_file_size: ?usize, generated: bool) !usize {
         assert(self.manifest_file == null);
 
         const gpa = self.cache.gpa;
         try self.files.ensureUnusedCapacity(gpa, 1);
         const prefixed_path = try self.cache.findPrefix(file_path);
         errdefer gpa.free(prefixed_path.sub_path);
+
+        if (self.fubbig) std.debug.print("SUBPATH: {} {s}\n", .{ prefixed_path.prefix, prefixed_path.sub_path });
 
         const gop = self.files.getOrPutAssumeCapacityAdapted(prefixed_path, FilesAdapter{});
         if (gop.found_existing) {
@@ -378,8 +381,28 @@ pub const Manifest = struct {
             .bin_digest = undefined,
         };
 
-        self.hash.add(prefixed_path.prefix);
-        self.hash.addBytes(prefixed_path.sub_path);
+        if (generated) {
+            const prefix = "zig-cache/o/";
+            const path = prefixed_path.sub_path;
+            if (path.len < prefix.len or !mem.eql(u8, path[0..prefix.len], prefix)) {
+                std.debug.print("\npath path {s}\n", .{path});
+                @panic("PANNIIIIIK");
+            }
+            const aapath = path[prefix.len..];
+            if (aapath.len < 34 or aapath[32] != '/') {
+                @panic("PANNIIIIIK2");
+            }
+
+            if (self.fubbig) {
+                std.debug.print("begick: {s}\n", .{aapath[33..]});
+            }
+
+            self.hash.add(@as(u8, 255));
+            self.hash.addBytes(aapath[33..]);
+        } else {
+            self.hash.add(prefixed_path.prefix);
+            self.hash.addBytes(prefixed_path.sub_path);
+        }
 
         return gop.index;
     }
@@ -387,13 +410,13 @@ pub const Manifest = struct {
     pub fn addOptionalFile(self: *Manifest, optional_file_path: ?[]const u8) !void {
         self.hash.add(optional_file_path != null);
         const file_path = optional_file_path orelse return;
-        _ = try self.addFile(file_path, null);
+        _ = try self.addFile(file_path, null, false);
     }
 
     pub fn addListOfFiles(self: *Manifest, list_of_files: []const []const u8) !void {
         self.hash.add(list_of_files.len);
         for (list_of_files) |file_path| {
-            _ = try self.addFile(file_path, null);
+            _ = try self.addFile(file_path, null, false);
         }
     }
 
@@ -1078,7 +1101,7 @@ test "cache file and then recall it" {
             ch.hash.add(true);
             ch.hash.add(@as(u16, 1234));
             ch.hash.addBytes("1234");
-            _ = try ch.addFile(temp_file, null);
+            _ = try ch.addFile(temp_file, null, false);
 
             // There should be nothing in the cache
             try testing.expectEqual(false, try ch.hit());
@@ -1093,7 +1116,7 @@ test "cache file and then recall it" {
             ch.hash.add(true);
             ch.hash.add(@as(u16, 1234));
             ch.hash.addBytes("1234");
-            _ = try ch.addFile(temp_file, null);
+            _ = try ch.addFile(temp_file, null, false);
 
             // Cache hit! We just "built" the same file
             try testing.expect(try ch.hit());
@@ -1144,7 +1167,7 @@ test "check that changing a file makes cache fail" {
             defer ch.deinit();
 
             ch.hash.addBytes("1234");
-            const temp_file_idx = try ch.addFile(temp_file, 100);
+            const temp_file_idx = try ch.addFile(temp_file, 100, false);
 
             // There should be nothing in the cache
             try testing.expectEqual(false, try ch.hit());
@@ -1163,7 +1186,7 @@ test "check that changing a file makes cache fail" {
             defer ch.deinit();
 
             ch.hash.addBytes("1234");
-            const temp_file_idx = try ch.addFile(temp_file, 100);
+            const temp_file_idx = try ch.addFile(temp_file, 100, false);
 
             // A file that we depend on has been updated, so the cache should not contain an entry for it
             try testing.expectEqual(false, try ch.hit());
@@ -1267,7 +1290,7 @@ test "Manifest with files added after initial hash work" {
             defer ch.deinit();
 
             ch.hash.addBytes("1234");
-            _ = try ch.addFile(temp_file1, null);
+            _ = try ch.addFile(temp_file1, null, false);
 
             // There should be nothing in the cache
             try testing.expectEqual(false, try ch.hit());
@@ -1282,7 +1305,7 @@ test "Manifest with files added after initial hash work" {
             defer ch.deinit();
 
             ch.hash.addBytes("1234");
-            _ = try ch.addFile(temp_file1, null);
+            _ = try ch.addFile(temp_file1, null, false);
 
             try testing.expect(try ch.hit());
             digest2 = ch.final();

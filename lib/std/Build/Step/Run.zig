@@ -78,6 +78,8 @@ dep_output_file: ?*Output = null,
 
 has_side_effects: bool = false,
 
+dbg_name: ?[]u8 = null,
+
 pub const StdIn = union(enum) {
     none,
     bytes: []const u8,
@@ -515,8 +517,11 @@ fn make(step: *Step, prog_node: *std.Progress.Node) !void {
             .lazy_path => |file| {
                 const file_path = file.lazy_path.getPath(b);
                 try argv_list.append(b.fmt("{s}{s}", .{ file.prefix, file_path }));
+                if (self.dbg_name != null) std.debug.print("lazy {s} vs {s}\n", .{ file.prefix, file_path });
                 man.hash.addBytes(file.prefix);
-                _ = try man.addFile(file_path, null);
+                man.fubbig = (self.dbg_name != null);
+                _ = try man.addFile(file_path, null, file.lazy_path == .generated);
+                man.fubbig = false;
             },
             .directory_source => |file| {
                 const file_path = file.lazy_path.getPath(b);
@@ -533,7 +538,7 @@ fn make(step: *Step, prog_node: *std.Progress.Node) !void {
 
                 try argv_list.append(file_path);
 
-                _ = try man.addFile(file_path, null);
+                _ = try man.addFile(file_path, null, false);
             },
             .output => |output| {
                 man.hash.addBytes(output.prefix);
@@ -548,6 +553,9 @@ fn make(step: *Step, prog_node: *std.Progress.Node) !void {
                 });
             },
         }
+        if (self.dbg_name != null) {
+            std.debug.print("HASH after {s} is {any}\n", .{ @tagName(arg), man.hash.peek() });
+        }
     }
 
     switch (self.stdin) {
@@ -556,7 +564,7 @@ fn make(step: *Step, prog_node: *std.Progress.Node) !void {
         },
         .lazy_path => |lazy_path| {
             const file_path = lazy_path.getPath(b);
-            _ = try man.addFile(file_path, null);
+            _ = try man.addFile(file_path, null, false);
         },
         .none => {},
     }
@@ -577,7 +585,7 @@ fn make(step: *Step, prog_node: *std.Progress.Node) !void {
     }
 
     for (self.extra_file_dependencies) |file_path| {
-        _ = try man.addFile(b.pathFromRoot(file_path), null);
+        _ = try man.addFile(b.pathFromRoot(file_path), null, false);
     }
 
     if (try step.cacheHit(&man)) {
@@ -592,6 +600,10 @@ fn make(step: *Step, prog_node: *std.Progress.Node) !void {
             b.cache_root,
             &digest,
         );
+
+        if (self.dbg_name) |name| {
+            std.debug.print("cache hit: {s}\n", .{name});
+        }
 
         step.result_cached = true;
         return;
@@ -659,6 +671,10 @@ fn make(step: *Step, prog_node: *std.Progress.Node) !void {
     }
 
     try step.writeManifest(&man);
+
+    if (self.dbg_name) |name| {
+        std.debug.print("EXECUTED: {s}\n", .{name});
+    }
 
     try populateGeneratedPaths(
         arena,
