@@ -381,6 +381,8 @@ fn render_cmake(
                 .boolean => |b| {
                     if (!b) {
                         break :blk Value.undef;
+                    } else if (!booldefine) {
+                        break :blk Value.defined;
                     }
                 },
                 .int => |i| {
@@ -423,7 +425,7 @@ fn render_cmake(
                     },
                 }
             };
-        } else if (value != Value.undef) {
+        } else if (value != Value.undef and value != Value.defined) {
             value = Value{ .ident = it.rest() };
         }
 
